@@ -1,0 +1,6 @@
+*.sh text eol=lf
+*.py text eol=lf
+# InstallShield response file: keep the CRLF line endings it was recorded with.
+lib/setup.iss -text
+*.gxt binary
+*.asi binary
