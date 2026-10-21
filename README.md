@@ -15,7 +15,9 @@ to your Steam library and forces Proton. Go back to Game Mode and play.
 ## What it does
 
 1. Downloads the official Rockstar freeware installer (`GTA2INSTALLER.exe`,
-   checksum-verified) and runs it **silently under Proton**.
+   checksum-verified), unpacks the InstallShield package it embeds and runs
+   it **silently under Proton** (its launcher stub randomly hangs under
+   Proton 11 / Experimental, so it is bypassed).
 2. Adds the French, German and Italian texts missing from the freeware release
    (without them the game crashes when you pick those languages in the menu).
 3. Installs controller support: [Ultimate ASI Loader] + GInput (PlayStation
@@ -49,7 +51,8 @@ No map packs, no gameplay changes: the original game with a controller.
   | Proton | Status |
   |---|---|
   | 10.0 | default, tested |
-  | 11.0, 9.0, Experimental, Hotfix | tested by `tests/matrix.sh` |
+  | 11.0, Experimental, Hotfix | tested by `tests/matrix.sh` |
+  | 9.0 | not supported: the Rockstar installer never completes under it |
   | others (8.0, GE-Proton...) | not tested; usable with `--proton`, contributions welcome |
 
 - ~450 MB of free space
@@ -64,7 +67,7 @@ curl -fsSL https://raw.githubusercontent.com/MagiCrazy/gta2-deck/main/install.sh
 |---|---|
 | `--dir DIR` | install root (default `~/Games/gta2`) |
 | `--lang LANG` | `en`, `fr`, `de`, `it` or `es` |
-| `--proton NAME` | Proton build, e.g. `"Proton 9.0 (Beta)"` or `proton_11` |
+| `--proton NAME` | Proton build, e.g. `"Proton 11.0"` or `proton_11` |
 | `--vanilla` | skip Frontend Fix + Widescreen Fix (original menus) |
 | `--installer FILE` | use your own `GTA2INSTALLER.exe` |
 | `--interactive` | show the InstallShield wizard instead of a silent install |
@@ -141,6 +144,15 @@ From a clone of this repository, with Steam closed:
   [GTAForums topic](https://gtaforums.com/topic/988318-ginput-for-gta2/).
 - **btpf** — [GTA2 Deck Edition], the mod pack that showed this setup works on
   the Deck.
+- Library artwork (`artwork/`), from [SteamGridDB](https://www.steamgriddb.com):
+  - capsules (`portrait.png`, `landscape.png`) by
+    [nBurbidge](https://www.steamgriddb.com/profile/76561198024748672)
+  - banner (`hero.jpg`) by
+    [Jib](https://www.steamgriddb.com/profile/76561198394798289)
+  - logo (`logo.png`) by
+    [CluckenDip](https://www.steamgriddb.com/profile/76561198120642113)
+  - icon (`icon.png`, extracted from the original `.ico`) by
+    [Pi0h1](https://www.steamgriddb.com/profile/76561198073304281)
 
 ## Disclaimer
 
