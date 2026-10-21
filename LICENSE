@@ -21,5 +21,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 This license covers the scripts of this repository only. Game files, the
-language files under payload/data and the third-party plugins under
-payload/scripts belong to their respective owners.
+language files under payload/data, the third-party plugins under
+payload/scripts and the artwork under artwork/ belong to their respective
+owners.

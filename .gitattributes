@@ -4,3 +4,5 @@
 lib/setup.iss -text
 *.gxt binary
 *.asi binary
+*.png binary
+*.jpg binary
