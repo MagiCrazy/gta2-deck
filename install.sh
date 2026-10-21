@@ -11,9 +11,9 @@ REPO="MagiCrazy/gta2-deck"
 VERSION="v1.0"
 
 # Proton builds covered by tests/matrix.sh, in order of preference (internal
-# tool names). Others (Proton 8, GE-Proton...) work only through --proton and
+# tool names). Others (Proton 9 and older, GE-Proton...) work only through --proton and
 # are reported as untested.
-PROTON_SUPPORTED="proton_10 proton_11 proton_9 proton_experimental proton_hotfix"
+PROTON_SUPPORTED="proton_10 proton_11 proton_experimental proton_hotfix"
 SHORTCUT_NAME="Grand Theft Auto 2"
 
 # Pinned downloads: name|sha256|url [url...]
@@ -29,7 +29,7 @@ Usage: install.sh [options]
   --dir DIR             install root (default: ~/Games/gta2)
                         the game goes to DIR/game, the Proton prefix to DIR/prefix
   --lang LANG           en, fr, de, it or es (default: en)
-  --proton NAME         Proton build to use, e.g. "Proton 9.0 (Beta)" or proton_11
+  --proton NAME         Proton build to use, e.g. "Proton 11.0" or proton_11
                         (default: Proton 10.0 if installed)
   --vanilla             skip Frontend Fix + Widescreen Fix (original menus,
                         settings only through gta2 manager.exe)
@@ -162,15 +162,23 @@ proton() {
 		"$PROTON_DIR/proton" run "$@"
 }
 
-wait_wine() {
+wineserver_bin() {
 	local server
 	for server in "$PROTON_DIR/files/bin/wineserver" "$PROTON_DIR/dist/bin/wineserver"; do
-		if [ -x "$server" ]; then
-			WINEPREFIX="$PREFIX/pfx" "$server" -w || true
-			return
-		fi
+		[ -x "$server" ] && { echo "$server"; return; }
 	done
-	sleep 10 # unknown layout: give wine time to finish
+}
+
+# wait_wine [SECONDS]: wait for the prefix to go idle, kill it after the timeout.
+wait_wine() {
+	local server
+	server="$(wineserver_bin)"
+	if [ -z "$server" ]; then
+		sleep 10 # unknown layout: give wine time to finish
+		return
+	fi
+	WINEPREFIX="$PREFIX/pfx" timeout "${1:-120}" "$server" -w \
+		|| WINEPREFIX="$PREFIX/pfx" "$server" -k || true
 }
 
 steam_running() { pgrep -x steam >/dev/null; }
@@ -220,10 +228,25 @@ else
 		setup_exe="$(fetch "$INSTALLER")"
 	fi
 	work="$(mktemp -d)"
+	# Unpack the InstallShield package ourselves: the launcher stub of
+	# GTA2INSTALLER.exe randomly hangs under Proton 11 / Experimental.
+	python3 -I "$SCRIPT_DIR/lib/unpack_installer.py" "$setup_exe" "$work/disk1" >/dev/null \
+		|| die "cannot unpack $setup_exe"
 	if [ "$INTERACTIVE" = 1 ]; then
 		log "Starting the InstallShield wizard; install to $(winpath "$GAME")"
-		proton "$setup_exe"
-		wait_wine
+		(cd "$work/disk1" && proton setup.exe) >"$work/proton.log" 2>&1 &
+		launcher=$!
+		# Done once the installer registered the game and its windows are gone
+		# ("proton run" itself may never return on newer builds).
+		while kill -0 "$launcher" 2>/dev/null; do
+			if grep -q 'Rockstar Games\\\\GTA2\]' "$PREFIX/pfx/system.reg" 2>/dev/null \
+				&& ! pgrep -f 'GTA2INSTALLER|[Ss]etup\.exe' >/dev/null; then
+				break
+			fi
+			sleep 2
+		done
+		wait_wine 60
+		kill "$launcher" 2>/dev/null || true
 		if [ ! -f "$GAME/gta2.exe" ]; then
 			# The user picked another folder: follow the path the installer registered.
 			reg_path="$(sed -n 's/^"path"="\(.*\)"\r\?$/\1/p' "$PREFIX/pfx/system.reg" | tail -1 | sed 's/\\\\/\\/g')"
@@ -235,10 +258,21 @@ else
 	else
 		log "Installing GTA 2 silently (this takes a minute)"
 		sed "s|@INSTALL_DIR@|$(winpath "$GAME" | sed 's/\\/\\\\/g')|" "$SCRIPT_DIR/lib/setup.iss" >"$work/setup.iss"
-		proton "$setup_exe" /s /f1"$(winpath "$work/setup.iss")" /f2"$(winpath "$work/setup.log")"
-		wait_wine
+		# Newer Proton builds may keep "proton run" alive after the installer is
+		# done: watch InstallShield's result log instead.
+		(cd "$work/disk1" && proton setup.exe /s /f1"$(winpath "$work/setup.iss")" /f2"$(winpath "$work/setup.log")") \
+			>"$work/proton.log" 2>&1 &
+		launcher=$!
+		for _ in $(seq 1 900); do
+			grep -q '^ResultCode=' "$work/setup.log" 2>/dev/null && break
+			kill -0 "$launcher" 2>/dev/null || break
+			sleep 1
+		done
+		wait_wine 60
+		kill "$launcher" 2>/dev/null || true
+		wait "$launcher" 2>/dev/null || true
 		grep -q '^ResultCode=0' "$work/setup.log" 2>/dev/null \
-			|| die "the Rockstar installer failed (see $work/setup.log)"
+			|| die "the Rockstar installer failed or timed out (logs in $work)"
 	fi
 	[ -f "$GAME/gta2.exe" ] || die "gta2.exe not found after installation"
 	rm -rf "$work"
@@ -268,9 +302,12 @@ REGEDIT4
 [HKEY_LOCAL_MACHINE\\Software\\Wow6432Node\\DMA Design Ltd\\GTA2\\Option]
 "Language"="$GXT"
 EOF
-proton regedit /S "$(winpath "$reg")"
-wait_wine
+STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" STEAM_COMPAT_DATA_PATH="$PREFIX" \
+	timeout 180 "$PROTON_DIR/proton" run regedit /S "$(winpath "$reg")" >/dev/null 2>&1 || true
+wait_wine 60
 rm -f "$reg"
+grep -q '"UseXVidMode"="N"' "$PREFIX/pfx/user.reg" 2>/dev/null \
+	|| die "could not write the Proton registry settings (prefix: $PREFIX)"
 
 # --- mods ---------------------------------------------------------------------
 

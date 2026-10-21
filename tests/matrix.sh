@@ -23,7 +23,7 @@ usage() {
 Usage: tests/matrix.sh --installer FILE [options]
 
   --installer FILE   local GTA2INSTALLER.exe (avoids downloading it per case)
-  --tools "A B"      internal tool names to test (default: every installed one)
+  --tools "A B"      internal tool names to test (default: installed supported ones)
   --variants "..."   frontend and/or vanilla (default: both)
   --work DIR         scratch directory (default: ~/gta2-deck-matrix)
   --seconds N        how long the game must survive (default: 20)
@@ -48,7 +48,11 @@ done
 
 STEAMPY=(python3 -I "$REPO_DIR/lib/steam.py")
 STEAM_ROOT="$("${STEAMPY[@]}" info | sed -n 's/^root=//p')"
-[ -n "$TOOLS" ] || TOOLS="$("${STEAMPY[@]}" list-tools | cut -f1 | tr '\n' ' ')"
+if [ -z "$TOOLS" ]; then
+	# Default: the supported builds (as declared in install.sh) that are installed.
+	supported="$(sed -n 's/^PROTON_SUPPORTED="\(.*\)"$/\1/p' "$REPO_DIR/install.sh")"
+	TOOLS="$("${STEAMPY[@]}" list-tools | cut -f1 | grep -xF -f <(tr ' ' '\n' <<<"$supported") | tr '\n' ' ')"
+fi
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
 RUN="$WORK/$(date +%Y%m%d-%H%M%S)"
@@ -87,7 +91,8 @@ for tool in $TOOLS; do
 
 		args=(--dir "$root" --no-steam -y --lang fr --proton "$tool" --installer "$INSTALLER")
 		[ "$variant" = vanilla ] && args+=(--vanilla)
-		if bash "$REPO_DIR/install.sh" "${args[@]}" >"$log.install.log" 2>&1; then
+		# A hung case must not stall the whole matrix.
+		if timeout 1500 bash "$REPO_DIR/install.sh" "${args[@]}" >"$log.install.log" 2>&1; then
 			install=ok
 			missing=""
 			expected=(game/gta2.exe game/dinput.dll game/data/f.gxt game/data/g.gxt game/data/i.gxt game/scripts/GInputII.asi)
