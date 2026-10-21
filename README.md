@@ -4,13 +4,40 @@ Install **Grand Theft Auto 2** on a Steam Deck in one command: the official
 Rockstar freeware release (9.6), playable with the controller, in your
 language, launched from Steam like any other game.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/MagiCrazy/gta2-deck/main/install.sh | bash
-```
+## Quick start
 
-Run it from **Desktop Mode** (Konsole). Without options it asks two questions
-(language, Frontend Fix yes/no), installs everything, adds *Grand Theft Auto 2*
-to your Steam library and forces Proton. Go back to Game Mode and play.
+Takes about five minutes. You need an internet connection.
+
+1. **Install Proton 11.0** (once). In Game Mode, open your **Library**, search
+   for `Proton 11.0` and install it. Skip this step if it is already installed.
+2. **Switch to Desktop Mode.** Press the **Steam** button → **Power** →
+   **Switch to Desktop**.
+3. **Open a terminal.** Click the application launcher (bottom-left corner) →
+   **System** → **Konsole**.
+4. **Run the installer.** Type or paste this line in Konsole, then press
+   **Enter**:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/MagiCrazy/gta2-deck/main/install.sh | bash
+   ```
+
+   No keyboard? Press **Steam + X** to show the on-screen keyboard, or open
+   this page in Firefox, copy the line, and paste it in Konsole with
+   **Ctrl + Shift + V** (right-click → *Paste* also works).
+5. **Answer the questions.** Pick your language, keep *Frontend Fix* (answer
+   **Yes**), keep the proposed Proton version. When asked to close Steam,
+   answer **Yes**: it is restarted at the end. Installation takes about a
+   minute; a window tells you when it is done.
+6. **Go back to Game Mode.** Double-click **Return to Gaming Mode** on the
+   desktop.
+7. **Play.** *Grand Theft Auto 2* is in your Library (also under the
+   **Non-Steam** tab). Press **Play**.
+
+Controls are listed [below](#controls-ginput-default-control-set). Settings
+(language, volume, display) are in the game's **Options** menu. To remove the
+game, see [Uninstall](#uninstall).
+
+Everything else in this README is for the curious and for troubleshooting.
 
 ## What it does
 
@@ -50,9 +77,9 @@ No map packs, no gameplay changes: the original game with a controller.
 
   | Proton | Status |
   |---|---|
-  | 11.0 | default, tested in Game Mode |
-  | 10.0 | tested in Game Mode (slower install) |
-  | Experimental, Hotfix | tested by `tests/matrix.sh` |
+  | 11.0 | default, tested in Game Mode and by `tests/matrix.sh` |
+  | 10.0 | tested in Game Mode and by `tests/matrix.sh` |
+  | Experimental, Hotfix | should work (same base as 11.0), not re-tested for v1.0 |
   | 9.0 | not supported: the Rockstar installer never completes under it |
   | others (8.0, GE-Proton...) | not tested; usable with `--proton`, contributions welcome |
 
@@ -144,12 +171,16 @@ tests/matrix.sh --installer ~/GTA2INSTALLER.exe
 
 ## Uninstall
 
-From a clone of this repository, with Steam closed:
+In Desktop Mode, open Konsole and run:
 
 ```bash
-./uninstall.sh            # shortcut + ~/Games/gta2
-./uninstall.sh --keep-files
+curl -fsSL https://raw.githubusercontent.com/MagiCrazy/gta2-deck/main/uninstall.sh | bash
 ```
+
+Answer **y** to confirm. It removes the Steam shortcut, its artwork and
+`~/Games/gta2` (game, Proton prefix **and saves**), closing and restarting
+Steam if needed. Add `-s -- --keep-files` after `bash` to only remove the
+shortcut and keep the game folder.
 
 ## Credits
 
