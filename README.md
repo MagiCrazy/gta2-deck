@@ -111,6 +111,10 @@ sets are described in `game/scripts/docs/GAME_CONTROLS.txt` and selected in
 
 ## Known limitations
 
+- **Play from Game Mode.** Launched from Steam in Desktop Mode, the game runs,
+  but Steam's Big Picture screen can stay black after you quit (press **B** to
+  abort), and the very first launch may show an offset, zoomed picture
+  (restart the game once).
 - Rumble is very weak (GInput only has an on/off switch).
 - The GTA 3-style radar mod is not included yet.
 
