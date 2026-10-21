@@ -27,7 +27,7 @@ to your Steam library and forces Proton. Go back to Game Mode and play.
    PlayStation-style menus and loading screens, and a fix for the black main
    menu after quitting a game.
 5. Configures the Proton prefix (1280×800, language, the workarounds below).
-6. Creates the Steam shortcut and forces the chosen Proton build (Proton 10.0
+6. Creates the Steam shortcut and forces the chosen Proton build (Proton 11.0
    by default). Steam is closed while its library files are edited and
    restarted afterwards.
 7. Adds library artwork (capsule, banner, logo, icon) to the shortcut.
@@ -46,12 +46,13 @@ No map packs, no gameplay changes: the original game with a controller.
 
 - Steam Deck (or any SteamOS / Linux box with Steam)
 - One of the tested Proton builds installed (Steam → Library → search
-  "Proton 10.0" → Install):
+  "Proton 11.0" → Install):
 
   | Proton | Status |
   |---|---|
-  | 10.0 | default, tested |
-  | 11.0, Experimental, Hotfix | tested by `tests/matrix.sh` |
+  | 11.0 | default, tested in Game Mode |
+  | 10.0 | tested in Game Mode (slower install) |
+  | Experimental, Hotfix | tested by `tests/matrix.sh` |
   | 9.0 | not supported: the Rockstar installer never completes under it |
   | others (8.0, GE-Proton...) | not tested; usable with `--proton`, contributions welcome |
 
@@ -102,9 +103,21 @@ sets are described in `game/scripts/docs/GAME_CONTROLS.txt` and selected in
 - `UseXVidMode=N` (`HKCU\Software\Wine\X11 Driver`): without it, 9.6 crashes on
   start in Wine's XVidMode code, both in Desktop Mode and in gamescope.
 - `dinput=native,builtin` DLL override: loads the ASI loader (`dinput.dll`).
+- `do_play_movie=1` (`HKLM\Software\Wow6432Node\DMA Design Ltd\GTA2\Screen`):
+  the intro movie is off unless `gta2 manager.exe` wrote this value.
 - Frontend Fix stores its settings in `game/ufiles/settings.xml`. The screen
   mode must be **borderless windowed**: plain windowed mode renders a black
   screen in gamescope.
+- With Frontend Fix, screen mode and language are **not** written to the
+  registry: Frontend Fix deletes those values on its first start, and while
+  they exist that first start opens an oversized, cropped window.
+- Frontend Fix unconditionally skips the intro movie (it patches the start-up
+  state at `0x4D145C` in `gta2.exe`). The installer patches one byte of the
+  downloaded `FrontendFixII.asi` so that it writes the original value back;
+  the bytes are checked first and the plugin is left untouched if they differ.
+- Widescreen Fix renders at the Deck's native 1280×800 (`ResX`/`ResY` in
+  `game/scripts/GTA2.WidescreenFix.ini`); intro and end credits are kept
+  (`SkipMovie = 0`, `SkipCredits = 0`).
 - The Steam shortcut points Proton to `prefix/` through its launch options
   (`STEAM_COMPAT_DATA_PATH=... %command%`), so removing the shortcut never
   deletes the game or the saves.
@@ -113,8 +126,8 @@ sets are described in `game/scripts/docs/GAME_CONTROLS.txt` and selected in
 
 - **Play from Game Mode.** Launched from Steam in Desktop Mode, the game runs,
   but Steam's Big Picture screen can stay black after you quit (press **B** to
-  abort), and the very first launch may show an offset, zoomed picture
-  (restart the game once).
+  abort).
+- The intro movie plays at its original size, in the middle of the screen.
 - Rumble is very weak (GInput only has an on/off switch).
 - The GTA 3-style radar mod is not included yet.
 
