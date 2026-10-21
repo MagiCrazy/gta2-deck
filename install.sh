@@ -13,7 +13,7 @@ VERSION="v1.0"
 # Proton builds covered by tests/matrix.sh, in order of preference (internal
 # tool names). Others (Proton 9 and older, GE-Proton...) work only through --proton and
 # are reported as untested.
-PROTON_SUPPORTED="proton_10 proton_11 proton_experimental proton_hotfix"
+PROTON_SUPPORTED="proton_11 proton_10 proton_experimental proton_hotfix"
 SHORTCUT_NAME="Grand Theft Auto 2"
 
 # Pinned downloads: name|sha256|url [url...]
@@ -30,7 +30,7 @@ Usage: install.sh [options]
                         the game goes to DIR/game, the Proton prefix to DIR/prefix
   --lang LANG           en, fr, de, it or es (default: en)
   --proton NAME         Proton build to use, e.g. "Proton 11.0" or proton_11
-                        (default: Proton 10.0 if installed)
+                        (default: Proton 11.0 if installed)
   --vanilla             skip Frontend Fix + Widescreen Fix (original menus,
                         settings only through gta2 manager.exe)
   --installer FILE      use a local GTA2INSTALLER.exe instead of downloading it
@@ -190,7 +190,7 @@ ALL_TOOLS="$("${STEAMPY[@]}" list-tools)"
 TOOLS="$(awk -F'\t' -v keep=" $PROTON_SUPPORTED " 'index(keep, " " $1 " ")' <<<"$ALL_TOOLS")"
 
 if [ -z "$PROTON_WANTED" ]; then
-	[ -n "$TOOLS" ] || die "no supported Proton build found. In Steam, search the library for \"Proton 10.0\" and install it, then run this script again."
+	[ -n "$TOOLS" ] || die "no supported Proton build found. In Steam, search the library for \"Proton 11.0\" and install it, then run this script again."
 	for name in $PROTON_SUPPORTED; do
 		if cut -f1 <<<"$TOOLS" | grep -qx "$name"; then PROTON_WANTED="$name"; break; fi
 	done
@@ -199,7 +199,7 @@ if [ -z "$PROTON_WANTED" ]; then
 		while IFS=$'\t' read -r name display _; do
 			choices+=("$([ "$name" = "$PROTON_WANTED" ] && echo TRUE || echo FALSE)" "$name" "$display")
 		done <<<"$TOOLS"
-		PROTON_WANTED="$(zenity --list --radiolist --title="GTA 2 installer" --text="Proton version (Proton 10.0 is the tested one)" \
+		PROTON_WANTED="$(zenity --list --radiolist --title="GTA 2 installer" --text="Proton version (11.0 recommended)" \
 			--column="" --column="Tool" --column="Proton" --hide-column=2 --height=350 "${choices[@]}")" \
 			|| die "installation cancelled"
 	fi
@@ -293,6 +293,13 @@ REGEDIT4
 "UseXVidMode"="N"
 
 [HKEY_LOCAL_MACHINE\\Software\\Wow6432Node\\DMA Design Ltd\\GTA2\\Screen]
+"do_play_movie"=dword:00000001
+EOF
+# Screen mode and language: only for the vanilla game. Frontend Fix moves these
+# settings to ufiles/settings.xml and deletes them on its first start; when
+# they are present that first start opens an oversized, cropped window.
+if [ "$VANILLA" = 1 ]; then
+	cat >>"$reg" <<EOF
 "start_mode"=dword:00000000
 "full_width"=dword:00000500
 "full_height"=dword:00000320
@@ -302,6 +309,7 @@ REGEDIT4
 [HKEY_LOCAL_MACHINE\\Software\\Wow6432Node\\DMA Design Ltd\\GTA2\\Option]
 "Language"="$GXT"
 EOF
+fi
 STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" STEAM_COMPAT_DATA_PATH="$PREFIX" \
 	timeout 180 "$PROTON_DIR/proton" run regedit /S "$(winpath "$reg")" >/dev/null 2>&1 || true
 wait_wine 60
@@ -324,6 +332,19 @@ else
 	ffix="$(fetch "$FRONTEND_FIX")"
 	unzip -o -q "$ffix" 'data/*' -d "$GAME"
 	unzip -o -q -j "$ffix" FrontendFixII.asi FrontendFixII.ini -d "$GAME/scripts"
+	# Frontend Fix always skips the intro movie: it writes 0 over the "8" of
+	# "add edi, 8" at 0x4D145C (start-up state = play movie). Make it write 8
+	# back instead: push 1 / push 0 / push 0x4D145E -> push 1 / push 8 / ...
+	python3 -I - "$GAME/scripts/FrontendFixII.asi" <<'EOF' || warn "could not re-enable the intro movie (unexpected Frontend Fix build)"
+import sys
+path = sys.argv[1]
+data = bytearray(open(path, "rb").read())
+offset, expected = 0x12B06, bytes.fromhex("6a016a00685e144d00")
+if data[offset:offset + len(expected)] != expected:
+    sys.exit(1)
+data[offset + 3] = 0x08
+open(path, "wb").write(data)
+EOF
 	unzip -o -q -j "$(fetch "$WIDESCREEN_FIX")" scripts/GTA2.WidescreenFix.asi -d "$GAME/scripts"
 	cp "$SCRIPT_DIR/lib/GTA2.WidescreenFix.ini" "$GAME/scripts/"
 
