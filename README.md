@@ -25,7 +25,8 @@ Takes about five minutes. You need an internet connection.
    this page in Firefox, copy the line, and paste it in Konsole with
    **Ctrl + Shift + V** (right-click → *Paste* also works).
 5. **Answer the questions.** Pick your language, keep *Frontend Fix* (answer
-   **Yes**), keep the proposed Proton version. When asked to close Steam,
+   **Yes**), choose whether you want the GTA 3-style radar (a minimap that is
+   not in the original game), keep the proposed Proton version. When asked to close Steam,
    answer **Yes**: it is restarted at the end. Installation takes about a
    minute; a window tells you when it is done.
 6. **Go back to Game Mode.** Double-click **Return to Gaming Mode** on the
@@ -53,6 +54,8 @@ Everything else in this README is for the curious and for troubleshooting.
    in-game settings menu instead of the external `gta2 manager.exe`,
    PlayStation-style menus and loading screens, and a fix for the black main
    menu after quitting a game.
+   Optionally adds the [GTA2 Radar] (GTA 3-style minimap with mission blips),
+   keeping the game's own objective arrows.
 5. Configures the Proton prefix (1280×800, language, the workarounds below).
 6. Creates the Steam shortcut and forces the chosen Proton build (Proton 11.0
    by default). Steam is closed while its library files are edited and
@@ -97,6 +100,7 @@ curl -fsSL https://raw.githubusercontent.com/MagiCrazy/gta2-deck/main/install.sh
 | `--lang LANG` | `en`, `fr`, `de`, `it` or `es` |
 | `--proton NAME` | Proton build, e.g. `"Proton 11.0"` or `proton_11` |
 | `--vanilla` | skip Frontend Fix + Widescreen Fix (original menus) |
+| `--radar` | add the GTA 3-style radar (not with `--vanilla`) |
 | `--installer FILE` | use your own `GTA2INSTALLER.exe` |
 | `--interactive` | show the InstallShield wizard instead of a silent install |
 | `--no-steam` | do not touch the Steam library |
@@ -142,6 +146,9 @@ sets are described in `game/scripts/docs/GAME_CONTROLS.txt` and selected in
   state at `0x4D145C` in `gta2.exe`). The installer patches one byte of the
   downloaded `FrontendFixII.asi` so that it writes the original value back;
   the bytes are checked first and the plugin is left untouched if they differ.
+- Radar v0.100 always hides the game's objective arrows (it NOPs 11 bytes at
+  `0x4CA4D2`). The installer patches one byte of the downloaded
+  `GTA2Radar.asi` so that it NOPs 0 bytes instead; same checks as above.
 - Widescreen Fix renders at the Deck's native 1280×800 (`ResX`/`ResY` in
   `game/scripts/GTA2.WidescreenFix.ini`); intro and end credits are kept
   (`SkipMovie = 0`, `SkipCredits = 0`).
@@ -156,7 +163,6 @@ sets are described in `game/scripts/docs/GAME_CONTROLS.txt` and selected in
   abort).
 - The intro movie plays at its original size, in the middle of the screen.
 - Rumble is very weak (GInput only has an on/off switch).
-- The GTA 3-style radar mod is not included yet.
 
 ## Tests
 
@@ -187,7 +193,7 @@ shortcut and keep the game folder.
 - **Rockstar Games / Take-Two Interactive** — Grand Theft Auto 2, released as
   freeware in 2004.
 - **ThirteenAG** — [Ultimate ASI Loader] and [Widescreen Fix] (MIT).
-- **gennariarmando** — [Frontend Fix].
+- **gennariarmando** — [Frontend Fix] and [GTA2 Radar].
 - **GInput for GTA2** — controller plugin, from the
   [GTAForums topic](https://gtaforums.com/topic/988318-ginput-for-gta2/).
 - **btpf** — [GTA2 Deck Edition], the mod pack that showed this setup works on
@@ -213,4 +219,5 @@ Interactive. The scripts themselves are MIT-licensed (see `LICENSE`).
 [Ultimate ASI Loader]: https://github.com/ThirteenAG/Ultimate-ASI-Loader
 [Widescreen Fix]: https://github.com/ThirteenAG/WidescreenFixesPack
 [Frontend Fix]: https://github.com/gennariarmando/gta2-frontend-fix
+[GTA2 Radar]: https://github.com/gennariarmando/gta2-radar
 [GTA2 Deck Edition]: https://github.com/btpf/GTA2DeckEdition
