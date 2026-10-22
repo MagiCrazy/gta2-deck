@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO="MagiCrazy/gta2-deck"
-VERSION="v1.0"
+VERSION="v1.1"
 
 usage() {
 	cat <<EOF

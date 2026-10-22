@@ -8,7 +8,10 @@
 set -euo pipefail
 
 REPO="MagiCrazy/gta2-deck"
-VERSION="v1.0"
+VERSION="v1.1"
+# Release holding the large assets (Rockstar installer, Widescreen Fix mirror):
+# they do not change between versions, so they are not re-uploaded each time.
+ASSETS_VERSION="v1.0"
 
 # Proton builds covered by tests/matrix.sh, in order of preference (internal
 # tool names). Others (Proton 9 and older, GE-Proton...) work only through --proton and
@@ -17,10 +20,11 @@ PROTON_SUPPORTED="proton_11 proton_10 proton_experimental proton_hotfix"
 SHORTCUT_NAME="Grand Theft Auto 2"
 
 # Pinned downloads: name|sha256|url [url...]
-INSTALLER="GTA2INSTALLER.exe|0cd380498dfbe62448d56aaddd3e36593cfda324aa8a3972b06a02d015b083a0|https://github.com/${REPO}/releases/download/${VERSION}/GTA2INSTALLER.exe https://archive.org/download/gta2_rockstar-classics/GTA2INSTALLER.exe"
+INSTALLER="GTA2INSTALLER.exe|0cd380498dfbe62448d56aaddd3e36593cfda324aa8a3972b06a02d015b083a0|https://github.com/${REPO}/releases/download/${ASSETS_VERSION}/GTA2INSTALLER.exe https://archive.org/download/gta2_rockstar-classics/GTA2INSTALLER.exe"
 ASI_LOADER="Ultimate-ASI-Loader-v4.68.zip|7517c7d5bd8c475f18e6545b7998df379eed6e2e0a19fcd2139669152f9bcddb|https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/v4.68/Ultimate-ASI-Loader.zip"
 FRONTEND_FIX="FrontendFixII-v0.100.zip|ac959e5171696ccf7f6adef25054e68a0cc0a0005648390423258b1d808b7a55|https://github.com/gennariarmando/gta2-frontend-fix/releases/download/v0.100/FrontendFixII.zip"
-WIDESCREEN_FIX="GTA2.WidescreenFix-20240827.zip|c64f9ba71f091265ea6ca59e3bba112d45667d6b16b6246aa2919ec243481cc7|https://github.com/ThirteenAG/WidescreenFixesPack/releases/download/gta2/GTA2.WidescreenFix.zip https://github.com/${REPO}/releases/download/${VERSION}/GTA2.WidescreenFix.zip"
+RADAR="GTA2Radar-v0.100.zip|4a56a63dbea1f01a2b3c6503a81c2ce20c7a2dbdacb982b2bab815e87f1399f0|https://github.com/gennariarmando/gta2-radar/releases/download/v0.100/GTA2Radar.zip"
+WIDESCREEN_FIX="GTA2.WidescreenFix-20240827.zip|c64f9ba71f091265ea6ca59e3bba112d45667d6b16b6246aa2919ec243481cc7|https://github.com/ThirteenAG/WidescreenFixesPack/releases/download/gta2/GTA2.WidescreenFix.zip https://github.com/${REPO}/releases/download/${ASSETS_VERSION}/GTA2.WidescreenFix.zip"
 
 usage() {
 	cat <<EOF
@@ -33,6 +37,8 @@ Usage: install.sh [options]
                         (default: Proton 11.0 if installed)
   --vanilla             skip Frontend Fix + Widescreen Fix (original menus,
                         settings only through gta2 manager.exe)
+  --radar               add the GTA 3-style radar (minimap); needs Frontend Fix
+                        + Widescreen Fix, so not with --vanilla
   --installer FILE      use a local GTA2INSTALLER.exe instead of downloading it
   --interactive         show the InstallShield wizard instead of a silent install
   --no-steam            do not create the Steam shortcut
@@ -78,6 +84,7 @@ ROOT="$HOME/Games/gta2"
 LANG_CODE=""
 PROTON_WANTED=""
 VANILLA=0
+RADAR_MOD=0
 LOCAL_INSTALLER=""
 INTERACTIVE=0
 STEAM=1
@@ -91,6 +98,7 @@ while [ $# -gt 0 ]; do
 	--lang) LANG_CODE="${2:?--lang needs a value}"; shift ;;
 	--proton) PROTON_WANTED="${2:?--proton needs a value}"; shift ;;
 	--vanilla) VANILLA=1 ;;
+	--radar) RADAR_MOD=1 ;;
 	--installer) LOCAL_INSTALLER="${2:?--installer needs a value}"; shift ;;
 	--interactive) INTERACTIVE=1 ;;
 	--no-steam) STEAM=0 ;;
@@ -111,7 +119,13 @@ if [ "$ASK" = 1 ] && command -v zenity >/dev/null && [ -n "${DISPLAY:-}${WAYLAND
 	zenity --question --title="GTA 2 installer" --width=420 \
 		--text="Install Frontend Fix + Widescreen Fix?\n\nRecommended: in-game settings menu usable with the controller, PlayStation-style menus, fixes the black main menu after a game.\n\nChoose No for the untouched original menus." \
 		|| VANILLA=1
+	if [ "$VANILLA" = 0 ]; then
+		zenity --question --title="GTA 2 installer" --width=420 --default-cancel \
+			--text="Add the GTA 3-style radar?\n\nA minimap in the corner of the screen, with mission blips. It is not part of the original game." \
+			&& RADAR_MOD=1
+	fi
 fi
+[ "$VANILLA" = 1 ] && [ "$RADAR_MOD" = 1 ] && die "--radar needs Frontend Fix + Widescreen Fix: it cannot be combined with --vanilla"
 
 case "${LANG_CODE:-en}" in
 en) GXT=e ;; fr) GXT=f ;; de) GXT=g ;; it) GXT=i ;; es) GXT=s ;;
@@ -212,7 +226,7 @@ case " $PROTON_SUPPORTED " in
 esac
 
 log "Install root: $ROOT"
-log "Language: ${LANG_CODE:-en} ($GXT.gxt), $([ "$VANILLA" = 1 ] && echo vanilla || echo 'Frontend Fix + Widescreen Fix')"
+log "Language: ${LANG_CODE:-en} ($GXT.gxt), $([ "$VANILLA" = 1 ] && echo vanilla || echo "Frontend Fix + Widescreen Fix")$([ "$RADAR_MOD" = 1 ] && echo " + radar")"
 log "Using $PROTON_LABEL ($PROTON_TOOL)"
 mkdir -p "$GAME" "$PREFIX"
 
@@ -326,7 +340,7 @@ cp -r "$SCRIPT_DIR"/payload/scripts/. "$GAME/scripts/"
 unzip -p "$(fetch "$ASI_LOADER")" dinput8.dll >"$GAME/dinput.dll"
 
 if [ "$VANILLA" = 1 ]; then
-	rm -f "$GAME"/scripts/FrontendFixII.* "$GAME"/scripts/GTA2.WidescreenFix.*
+	rm -f "$GAME"/scripts/FrontendFixII.* "$GAME"/scripts/GTA2.WidescreenFix.* "$GAME"/scripts/GTA2Radar.*
 else
 	log "Installing Frontend Fix and Widescreen Fix"
 	ffix="$(fetch "$FRONTEND_FIX")"
@@ -347,6 +361,28 @@ open(path, "wb").write(data)
 EOF
 	unzip -o -q -j "$(fetch "$WIDESCREEN_FIX")" scripts/GTA2.WidescreenFix.asi -d "$GAME/scripts"
 	cp "$SCRIPT_DIR/lib/GTA2.WidescreenFix.ini" "$GAME/scripts/"
+
+	if [ "$RADAR_MOD" = 1 ]; then
+		log "Installing the radar"
+		radar="$(fetch "$RADAR")"
+		unzip -o -q "$radar" 'data/*.dds' -d "$GAME"
+		unzip -o -q -j "$radar" GTA2Radar.asi -d "$GAME/scripts"
+		# Radar v0.100 always hides the game's objective arrows (11 NOPs at
+		# 0x4CA4D2). Keep them: push 1 / push 11 / push 0x4CA4D2 -> push 0 bytes.
+		python3 -I - "$GAME/scripts/GTA2Radar.asi" <<'EOF' || warn "could not keep the objective arrows (unexpected radar build)"
+import sys
+path = sys.argv[1]
+data = bytearray(open(path, "rb").read())
+offset, expected = 0x583, bytes.fromhex("6a016a0b68d2a44c00")
+if data[offset:offset + len(expected)] != expected:
+    sys.exit(1)
+data[offset + 3] = 0x00
+open(path, "wb").write(data)
+EOF
+	else
+		# Re-running without --radar turns it off; its textures are harmless.
+		rm -f "$GAME"/scripts/GTA2Radar.*
+	fi
 
 	# Frontend Fix reads its settings from ufiles/settings.xml, not the registry.
 	# "borderless windowed" is required: "windowed" shows a black screen in gamescope.
