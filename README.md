@@ -26,7 +26,8 @@ Takes about five minutes. You need an internet connection.
    **Ctrl + Shift + V** (right-click → *Paste* also works).
 5. **Answer the questions.** Pick your language, keep *Frontend Fix* (answer
    **Yes**), choose whether you want the GTA 3-style radar (a minimap that is
-   not in the original game), keep the proposed Proton version. When asked to close Steam,
+   not in the original game), keep the modern controls (**Yes**), keep the
+   proposed Proton version. When asked to close Steam,
    answer **Yes**: it is restarted at the end. Installation takes about a
    minute; a window tells you when it is done.
 6. **Go back to Game Mode.** Double-click **Return to Gaming Mode** on the
@@ -34,9 +35,9 @@ Takes about five minutes. You need an internet connection.
 7. **Play.** *Grand Theft Auto 2* is in your Library (also under the
    **Non-Steam** tab). Press **Play**.
 
-Controls are listed [below](#controls-ginput-default-control-set). Settings
-(language, volume, display) are in the game's **Options** menu. To remove the
-game, see [Uninstall](#uninstall).
+Controls are listed [below](#controls). Settings (language, volume, display)
+are in the game's **Options** menu. To update, run the same command again (see
+[Update](#update)); to remove the game, see [Uninstall](#uninstall).
 
 Everything else in this README is for the curious and for troubleshooting.
 
@@ -56,6 +57,8 @@ Everything else in this README is for the curious and for troubleshooting.
    menu after quitting a game.
    Optionally adds the [GTA2 Radar] (GTA 3-style minimap with mission blips),
    keeping the game's own objective arrows.
+   Optionally (recommended) adds [GTA2 Modern Controls]: walk where the stick
+   points, trigger driving, twin-stick aiming.
 5. Configures the Proton prefix (1280×800, language, the workarounds below).
 6. Creates the Steam shortcut and forces the chosen Proton build (Proton 11.0
    by default). Steam is closed while its library files are edited and
@@ -99,19 +102,54 @@ curl -fsSL https://raw.githubusercontent.com/MagiCrazy/gta2-deck/main/install.sh
 | `--dir DIR` | install root (default `~/Games/gta2`) |
 | `--lang LANG` | `en`, `fr`, `de`, `it` or `es` |
 | `--proton NAME` | Proton build, e.g. `"Proton 11.0"` or `proton_11` |
-| `--vanilla` | skip Frontend Fix + Widescreen Fix (original menus) |
-| `--radar` | add the GTA 3-style radar (not with `--vanilla`) |
+| `--vanilla` / `--frontend-fix` | skip / install Frontend Fix + Widescreen Fix |
+| `--radar` / `--no-radar` | add / remove the GTA 3-style radar (not with `--vanilla`) |
+| `--modern-controls` / `--classic-controls` | add / remove GTA2 Modern Controls |
 | `--installer FILE` | use your own `GTA2INSTALLER.exe` |
 | `--interactive` | show the InstallShield wizard instead of a silent install |
 | `--no-steam` | do not touch the Steam library |
 | `--account-id ID` | Steam account to add the shortcut to (default: last login) |
 | `-y` | no questions |
 
-Passing any option disables the zenity dialogs. Running the script again is
-safe: an existing installation is kept and the shortcut is updated, not
-duplicated.
+Passing any option disables the zenity dialogs.
 
-## Controls (GInput, default control set)
+## Update
+
+Run the install command again. On an installed game it asks a single
+question: update and keep your current choices (language, Frontend Fix, radar,
+controls, Proton build), or choose again. Either way:
+
+- the game, the Proton prefix, your **saves** and `ufiles/settings.xml` are
+  kept, and the Steam shortcut is updated in place (play time and screenshots
+  stay);
+- the plugins are updated; your `GInputII.ini`, `FrontendFixII.ini` and
+  `GTA2ModernControls.ini` are kept. `GTA2.WidescreenFix.ini` is managed by the
+  installer and rewritten;
+- your choices are saved in `~/Games/gta2/gta2-deck.conf`. Without the
+  dialogs (`-y` or any option), they are reused and only the options you pass
+  change them, e.g. `bash -s -- --no-radar`.
+
+Installs made by v1.0 and v1.1 have no `gta2-deck.conf`: the installer reads
+the choices back from the installed files.
+
+## Controls
+
+### Modern controls (GTA2 Modern Controls, default when installed)
+
+| Button | On foot | In a vehicle |
+|---|---|---|
+| Left stick | Walk towards that direction on screen | Steer |
+| Right stick | Aim | Look around (turrets: rotate) |
+| R2 / L2 | Attack / hold to look around | Accelerate / brake, reverse |
+| A | Jump | Handbrake |
+| Y | Enter vehicle | Exit vehicle |
+| B | Special | Horn (tap: siren) |
+| D-pad ← / → | Previous / next weapon | same |
+| Select + R3 | Switch to the classic controls and back | same |
+
+Full list and settings: [GTA2 Modern Controls] README.
+
+### Classic controls (GInput, default control set)
 
 | Action | Button |
 |---|---|
@@ -194,6 +232,8 @@ shortcut and keep the game folder.
   freeware in 2004.
 - **ThirteenAG** — [Ultimate ASI Loader] and [Widescreen Fix] (MIT).
 - **gennariarmando** — [Frontend Fix] and [GTA2 Radar].
+- [GTA2 Modern Controls] — modern gamepad controls, a 9.6 port and extension of
+  Dege's Twin Stick mod (Zlib).
 - **GInput for GTA2** — controller plugin, from the
   [GTAForums topic](https://gtaforums.com/topic/988318-ginput-for-gta2/).
 - **btpf** — [GTA2 Deck Edition], the mod pack that showed this setup works on
@@ -220,4 +260,5 @@ Interactive. The scripts themselves are MIT-licensed (see `LICENSE`).
 [Widescreen Fix]: https://github.com/ThirteenAG/WidescreenFixesPack
 [Frontend Fix]: https://github.com/gennariarmando/gta2-frontend-fix
 [GTA2 Radar]: https://github.com/gennariarmando/gta2-radar
+[GTA2 Modern Controls]: https://github.com/MagiCrazy/gta2-modern-controls
 [GTA2 Deck Edition]: https://github.com/btpf/GTA2DeckEdition
