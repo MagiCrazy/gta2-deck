@@ -237,10 +237,21 @@ def dump_binary_vdf(tree):
 # --- file helpers --------------------------------------------------------------
 
 
+BACKUPS_KEPT = 3
+
+
 def backup(path):
-    if os.path.isfile(path):
-        dest = "%s.gta2-deck-%s.bak" % (path, time.strftime("%Y%m%d-%H%M%S"))
-        shutil.copy2(path, dest)
+    """Copy path to a timestamped .bak next to it, keeping the newest few."""
+    if not os.path.isfile(path):
+        return
+    dest = "%s.gta2-deck-%s.bak" % (path, time.strftime("%Y%m%d-%H%M%S"))
+    shutil.copy2(path, dest)
+    # Timestamps sort lexically; every run would otherwise add one more copy.
+    prefix = os.path.basename(path) + ".gta2-deck-"
+    folder = os.path.dirname(path)
+    old = sorted(f for f in os.listdir(folder) if f.startswith(prefix) and f.endswith(".bak"))
+    for name in old[:-BACKUPS_KEPT]:
+        os.remove(os.path.join(folder, name))
 
 
 def atomic_write(path, data):
