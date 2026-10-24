@@ -8,7 +8,7 @@
 set -euo pipefail
 
 REPO="MagiCrazy/gta2-deck"
-VERSION="v1.1"
+VERSION="v1.2"
 # Release holding the large assets (Rockstar installer, Widescreen Fix mirror):
 # they do not change between versions, so they are not re-uploaded each time.
 ASSETS_VERSION="v1.0"
@@ -23,12 +23,16 @@ SHORTCUT_NAME="Grand Theft Auto 2"
 INSTALLER="GTA2INSTALLER.exe|0cd380498dfbe62448d56aaddd3e36593cfda324aa8a3972b06a02d015b083a0|https://github.com/${REPO}/releases/download/${ASSETS_VERSION}/GTA2INSTALLER.exe https://archive.org/download/gta2_rockstar-classics/GTA2INSTALLER.exe"
 ASI_LOADER="Ultimate-ASI-Loader-v4.68.zip|7517c7d5bd8c475f18e6545b7998df379eed6e2e0a19fcd2139669152f9bcddb|https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/v4.68/Ultimate-ASI-Loader.zip"
 FRONTEND_FIX="FrontendFixII-v0.100.zip|ac959e5171696ccf7f6adef25054e68a0cc0a0005648390423258b1d808b7a55|https://github.com/gennariarmando/gta2-frontend-fix/releases/download/v0.100/FrontendFixII.zip"
+MODERN_CONTROLS="GTA2ModernControls-v1.0.0.asi|b029e0d296681b71ad3ccd2961b3ea1751a2bd0c66643c9a20559d6b39a0658d|https://github.com/MagiCrazy/gta2-modern-controls/releases/download/v1.0.0/GTA2ModernControls.asi"
 RADAR="GTA2Radar-v0.100.zip|4a56a63dbea1f01a2b3c6503a81c2ce20c7a2dbdacb982b2bab815e87f1399f0|https://github.com/gennariarmando/gta2-radar/releases/download/v0.100/GTA2Radar.zip"
 WIDESCREEN_FIX="GTA2.WidescreenFix-20240827.zip|c64f9ba71f091265ea6ca59e3bba112d45667d6b16b6246aa2919ec243481cc7|https://github.com/ThirteenAG/WidescreenFixesPack/releases/download/gta2/GTA2.WidescreenFix.zip https://github.com/${REPO}/releases/download/${ASSETS_VERSION}/GTA2.WidescreenFix.zip"
 
 usage() {
 	cat <<EOF
 Usage: install.sh [options]
+
+Running it again on an installed game updates it: game, saves and settings are
+kept, and the choices of the previous run are reused unless overridden here.
 
   --dir DIR             install root (default: ~/Games/gta2)
                         the game goes to DIR/game, the Proton prefix to DIR/prefix
@@ -37,8 +41,13 @@ Usage: install.sh [options]
                         (default: Proton 11.0 if installed)
   --vanilla             skip Frontend Fix + Widescreen Fix (original menus,
                         settings only through gta2 manager.exe)
-  --radar               add the GTA 3-style radar (minimap); needs Frontend Fix
-                        + Widescreen Fix, so not with --vanilla
+  --frontend-fix        install them (default; undoes a previous --vanilla)
+  --radar, --no-radar   add / remove the GTA 3-style radar (minimap); it needs
+                        Frontend Fix + Widescreen Fix, so not with --vanilla
+  --modern-controls     add GTA2 Modern Controls: absolute movement, trigger
+                        driving, twin-stick aiming (Select + R3 in game
+                        switches back to the classic controls)
+  --classic-controls    remove them
   --installer FILE      use a local GTA2INSTALLER.exe instead of downloading it
   --interactive         show the InstallShield wizard instead of a silent install
   --no-steam            do not create the Steam shortcut
@@ -73,18 +82,26 @@ if [ -z "$SCRIPT_DIR" ] || [ ! -f "$SCRIPT_DIR/lib/steam.py" ]; then
 		|| die "cannot download https://github.com/${REPO}"
 	# stdin is the piped script: give the real terminal back when there is one.
 	if [ -r /dev/tty ] && (: </dev/tty) 2>/dev/null; then
-		exec bash "$tmp/install.sh" "$@" </dev/tty
+		GTA2_DECK_BOOTSTRAP="$tmp" exec bash "$tmp/install.sh" "$@" </dev/tty
 	fi
-	exec bash "$tmp/install.sh" "$@" </dev/null
+	GTA2_DECK_BOOTSTRAP="$tmp" exec bash "$tmp/install.sh" "$@" </dev/null
+fi
+# Started from the curl bootstrap: drop the temporary checkout when done.
+if [ -n "${GTA2_DECK_BOOTSTRAP:-}" ] && [ "$SCRIPT_DIR" = "$GTA2_DECK_BOOTSTRAP" ]; then
+	trap 'rm -rf -- "$GTA2_DECK_BOOTSTRAP"' EXIT
 fi
 
 # --- options ------------------------------------------------------------------
+# Choices left empty were not given on the command line: the choices saved by a
+# previous run apply, then the defaults.
 
 ROOT="$HOME/Games/gta2"
 LANG_CODE=""
 PROTON_WANTED=""
-VANILLA=0
-RADAR_MOD=0
+VANILLA=""
+RADAR_MOD=""
+RADAR_EXPLICIT=0
+MODERN=""
 LOCAL_INSTALLER=""
 INTERACTIVE=0
 STEAM=1
@@ -98,7 +115,11 @@ while [ $# -gt 0 ]; do
 	--lang) LANG_CODE="${2:?--lang needs a value}"; shift ;;
 	--proton) PROTON_WANTED="${2:?--proton needs a value}"; shift ;;
 	--vanilla) VANILLA=1 ;;
-	--radar) RADAR_MOD=1 ;;
+	--frontend-fix) VANILLA=0 ;;
+	--radar) RADAR_MOD=1; RADAR_EXPLICIT=1 ;;
+	--no-radar) RADAR_MOD=0 ;;
+	--modern-controls) MODERN=1 ;;
+	--classic-controls) MODERN=0 ;;
 	--installer) LOCAL_INSTALLER="${2:?--installer needs a value}"; shift ;;
 	--interactive) INTERACTIVE=1 ;;
 	--no-steam) STEAM=0 ;;
@@ -110,33 +131,100 @@ while [ $# -gt 0 ]; do
 	shift
 done
 
-if [ "$ASK" = 1 ] && command -v zenity >/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
-	GUI=1
-	LANG_CODE="$(zenity --list --radiolist --title="GTA 2 installer" --text="Game language" \
-		--column="" --column="Code" --column="Language" --hide-column=2 --height=300 \
-		TRUE en English FALSE fr Français FALSE de Deutsch FALSE it Italiano FALSE es Español)" \
-		|| die "installation cancelled"
-	zenity --question --title="GTA 2 installer" --width=420 \
-		--text="Install Frontend Fix + Widescreen Fix?\n\nRecommended: in-game settings menu usable with the controller, PlayStation-style menus, fixes the black main menu after a game.\n\nChoose No for the untouched original menus." \
-		|| VANILLA=1
-	if [ "$VANILLA" = 0 ]; then
-		zenity --question --title="GTA 2 installer" --width=420 --default-cancel \
-			--text="Add the GTA 3-style radar?\n\nA minimap in the corner of the screen, with mission blips. It is not part of the original game." \
-			&& RADAR_MOD=1
-	fi
-fi
-[ "$VANILLA" = 1 ] && [ "$RADAR_MOD" = 1 ] && die "--radar needs Frontend Fix + Widescreen Fix: it cannot be combined with --vanilla"
-
-case "${LANG_CODE:-en}" in
-en) GXT=e ;; fr) GXT=f ;; de) GXT=g ;; it) GXT=i ;; es) GXT=s ;;
-*) die "unsupported language: $LANG_CODE (en, fr, de, it, es)" ;;
-esac
-
 ROOT="$(realpath -m "$ROOT")"
 GAME="$ROOT/game"
 PREFIX="$ROOT/prefix"
+CONF="$ROOT/gta2-deck.conf"
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/gta2-deck"
 STEAMPY=(python3 -I "$SCRIPT_DIR/lib/steam.py" "${ACCOUNT_ARGS[@]}")
+
+# --- previous choices ---------------------------------------------------------
+# Saved in gta2-deck.conf since v1.2; read back from the installed files for
+# installs made by older versions.
+
+SAVED_LANG="" SAVED_VANILLA="" SAVED_RADAR="" SAVED_MODERN="" SAVED_PROTON=""
+UPDATE=0
+if [ -f "$GAME/gta2.exe" ]; then
+	UPDATE=1
+	if [ -f "$CONF" ]; then
+		while IFS='=' read -r key value; do
+			case "$key" in
+			lang) SAVED_LANG="$value" ;;
+			vanilla) SAVED_VANILLA="$value" ;;
+			radar) SAVED_RADAR="$value" ;;
+			modern) SAVED_MODERN="$value" ;;
+			proton) SAVED_PROTON="$value" ;;
+			esac
+		done <"$CONF"
+	else
+		if [ -f "$GAME/scripts/FrontendFixII.asi" ]; then SAVED_VANILLA=0; else SAVED_VANILLA=1; fi
+		if [ -f "$GAME/scripts/GTA2Radar.asi" ]; then SAVED_RADAR=1; else SAVED_RADAR=0; fi
+		if [ -f "$GAME/scripts/GTA2ModernControls.asi" ]; then SAVED_MODERN=1; else SAVED_MODERN=0; fi
+		gxt="$(sed -n 's/.*<Language value="\(.\)".*/\1/p' "$GAME/ufiles/settings.xml" 2>/dev/null | head -1)"
+		[ -n "$gxt" ] || gxt="$(sed -n 's/^"Language"="\(.\)".*/\1/p' "$PREFIX/pfx/system.reg" 2>/dev/null | tail -1)"
+		case "$gxt" in e) SAVED_LANG=en ;; f) SAVED_LANG=fr ;; g) SAVED_LANG=de ;; i) SAVED_LANG=it ;; s) SAVED_LANG=es ;; esac
+	fi
+fi
+
+describe() { # LANG VANILLA RADAR MODERN -> one-line summary of a set of choices
+	printf '%s, %s%s%s' "${1:-en}" \
+		"$([ "${2:-0}" = 1 ] && echo "original menus" || echo "Frontend Fix")" \
+		"$([ "${3:-0}" = 1 ] && echo ", radar")" \
+		"$([ "${4:-0}" = 1 ] && echo ", modern controls" || echo ", classic controls")"
+}
+
+KEEP_CHOICES=0
+if [ "$ASK" = 1 ] && command -v zenity >/dev/null && [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+	GUI=1
+	if [ "$UPDATE" = 1 ] && zenity --question --title="GTA 2 installer" --width=460 \
+		--text="GTA 2 is already installed in $ROOT\n($(describe "$SAVED_LANG" "$SAVED_VANILLA" "$SAVED_RADAR" "$SAVED_MODERN")).\n\nUpdate it and keep these choices? Your saves are kept either way.\n\nChoose No to change the language or the options."; then
+		KEEP_CHOICES=1
+	else
+		rows=()
+		for entry in en:English fr:Français de:Deutsch it:Italiano es:Español; do
+			rows+=("$([ "${entry%%:*}" = "${SAVED_LANG:-en}" ] && echo TRUE || echo FALSE)" "${entry%%:*}" "${entry#*:}")
+		done
+		LANG_CODE="$(zenity --list --radiolist --title="GTA 2 installer" --text="Game language" \
+			--column="" --column="Code" --column="Language" --hide-column=2 --height=300 "${rows[@]}")" \
+			|| die "installation cancelled"
+		no_by_default() { [ "$1" = 1 ] && echo --default-cancel; } # zenity's default button is Yes
+		# shellcheck disable=SC2046
+		if zenity --question --title="GTA 2 installer" --width=420 $(no_by_default "${SAVED_VANILLA:-0}") \
+			--text="Install Frontend Fix + Widescreen Fix?\n\nRecommended: in-game settings menu usable with the controller, PlayStation-style menus, fixes the black main menu after a game.\n\nChoose No for the untouched original menus."; then
+			VANILLA=0
+		else
+			VANILLA=1
+		fi
+		RADAR_MOD=0
+		if [ "$VANILLA" = 0 ]; then
+			# shellcheck disable=SC2046
+			zenity --question --title="GTA 2 installer" --width=420 $(no_by_default "$([ "${SAVED_RADAR:-0}" = 1 ] && echo 0 || echo 1)") \
+				--text="Add the GTA 3-style radar?\n\nA minimap in the corner of the screen, with mission blips. It is not part of the original game." \
+				&& RADAR_MOD=1
+		fi
+		# shellcheck disable=SC2046
+		if zenity --question --title="GTA 2 installer" --width=420 $(no_by_default "$([ "${SAVED_MODERN:-1}" = 0 ] && echo 1 || echo 0)") \
+			--text="Use modern controls?\n\nWalk where the stick points, accelerate and brake with the triggers, aim with the right stick.\n\nSelect + R3 switches back to the original controls at any time in the game."; then
+			MODERN=1
+		else
+			MODERN=0
+		fi
+	fi
+fi
+
+: "${LANG_CODE:=${SAVED_LANG:-en}}"
+: "${VANILLA:=${SAVED_VANILLA:-0}}"
+: "${RADAR_MOD:=${SAVED_RADAR:-0}}"
+: "${MODERN:=${SAVED_MODERN:-0}}"
+if [ "$VANILLA" = 1 ] && [ "$RADAR_MOD" = 1 ]; then
+	[ "$RADAR_EXPLICIT" = 1 ] && die "--radar needs Frontend Fix + Widescreen Fix: it cannot be combined with --vanilla"
+	RADAR_MOD=0 # saved choice, dropped together with Frontend Fix
+fi
+
+case "$LANG_CODE" in
+en) GXT=e ;; fr) GXT=f ;; de) GXT=g ;; it) GXT=i ;; es) GXT=s ;;
+*) die "unsupported language: $LANG_CODE (en, fr, de, it, es)" ;;
+esac
 
 for cmd in python3 curl unzip sha256sum; do
 	command -v "$cmd" >/dev/null || die "missing command: $cmd"
@@ -205,10 +293,15 @@ TOOLS="$(awk -F'\t' -v keep=" $PROTON_SUPPORTED " 'index(keep, " " $1 " ")' <<<"
 
 if [ -z "$PROTON_WANTED" ]; then
 	[ -n "$TOOLS" ] || die "no supported Proton build found. In Steam, search the library for \"Proton 11.0\" and install it, then run this script again."
-	for name in $PROTON_SUPPORTED; do
-		if cut -f1 <<<"$TOOLS" | grep -qx "$name"; then PROTON_WANTED="$name"; break; fi
-	done
-	if [ "$GUI" = 1 ] && [ "$(wc -l <<<"$TOOLS")" -gt 1 ]; then
+	# The build used last time wins over the preference order while it is installed.
+	if [ -n "$SAVED_PROTON" ] && cut -f1 <<<"$ALL_TOOLS" | grep -qx "$SAVED_PROTON"; then
+		PROTON_WANTED="$SAVED_PROTON"
+	else
+		for name in $PROTON_SUPPORTED; do
+			if cut -f1 <<<"$TOOLS" | grep -qx "$name"; then PROTON_WANTED="$name"; break; fi
+		done
+	fi
+	if [ "$GUI" = 1 ] && [ "$KEEP_CHOICES" = 0 ] && [ "$(wc -l <<<"$TOOLS")" -gt 1 ]; then
 		choices=()
 		while IFS=$'\t' read -r name display _; do
 			choices+=("$([ "$name" = "$PROTON_WANTED" ] && echo TRUE || echo FALSE)" "$name" "$display")
@@ -226,7 +319,7 @@ case " $PROTON_SUPPORTED " in
 esac
 
 log "Install root: $ROOT"
-log "Language: ${LANG_CODE:-en} ($GXT.gxt), $([ "$VANILLA" = 1 ] && echo vanilla || echo "Frontend Fix + Widescreen Fix")$([ "$RADAR_MOD" = 1 ] && echo " + radar")"
+log "Language: ${LANG_CODE:-en} ($GXT.gxt), $([ "$VANILLA" = 1 ] && echo vanilla || echo "Frontend Fix + Widescreen Fix")$([ "$RADAR_MOD" = 1 ] && echo " + radar")$([ "$MODERN" = 1 ] && echo " + modern controls")"
 log "Using $PROTON_LABEL ($PROTON_TOOL)"
 mkdir -p "$GAME" "$PREFIX"
 
@@ -290,6 +383,8 @@ else
 	fi
 	[ -f "$GAME/gta2.exe" ] || die "gta2.exe not found after installation"
 	rm -rf "$work"
+	# The 346 MB installer is useless once the game is in place: re-runs skip it.
+	[ "$setup_exe" = "$CACHE/${INSTALLER%%|*}" ] && rm -f -- "$setup_exe"
 fi
 
 # --- registry -----------------------------------------------------------------
@@ -336,7 +431,10 @@ grep -q '"UseXVidMode"="N"' "$PREFIX/pfx/user.reg" 2>/dev/null \
 log "Installing languages, ASI loader and GInput"
 cp "$SCRIPT_DIR"/payload/data/*.gxt "$GAME/data/"
 mkdir -p "$GAME/scripts"
-cp -r "$SCRIPT_DIR"/payload/scripts/. "$GAME/scripts/"
+# Plugins are always updated; their .ini only when missing, to keep user edits.
+cp -r "$SCRIPT_DIR"/payload/scripts/docs "$GAME/scripts/"
+cp "$SCRIPT_DIR"/payload/scripts/*.asi "$GAME/scripts/"
+cp -n "$SCRIPT_DIR"/payload/scripts/*.ini "$GAME/scripts/"
 unzip -p "$(fetch "$ASI_LOADER")" dinput8.dll >"$GAME/dinput.dll"
 
 if [ "$VANILLA" = 1 ]; then
@@ -345,7 +443,8 @@ else
 	log "Installing Frontend Fix and Widescreen Fix"
 	ffix="$(fetch "$FRONTEND_FIX")"
 	unzip -o -q "$ffix" 'data/*' -d "$GAME"
-	unzip -o -q -j "$ffix" FrontendFixII.asi FrontendFixII.ini -d "$GAME/scripts"
+	unzip -o -q -j "$ffix" FrontendFixII.asi -d "$GAME/scripts"
+	unzip -n -q -j "$ffix" FrontendFixII.ini -d "$GAME/scripts"
 	# Frontend Fix always skips the intro movie: it writes 0 over the "8" of
 	# "add edi, 8" at 0x4D145C (start-up state = play movie). Make it write 8
 	# back instead: push 1 / push 0 / push 0x4D145E -> push 1 / push 8 / ...
@@ -426,6 +525,25 @@ EOF
 EOF
 	fi
 fi
+
+if [ "$MODERN" = 1 ]; then
+	log "Installing GTA2 Modern Controls"
+	cp "$(fetch "$MODERN_CONTROLS")" "$GAME/scripts/GTA2ModernControls.asi"
+else
+	# Re-running without --modern-controls turns it off; keep the user's .ini.
+	rm -f "$GAME/scripts/GTA2ModernControls.asi"
+fi
+
+# Reused as defaults the next time the installer runs (update).
+cat >"$CONF" <<EOF
+# gta2-deck choices, reused when the installer runs again. Edit or delete freely.
+version=$VERSION
+lang=$LANG_CODE
+vanilla=$VANILLA
+radar=$RADAR_MOD
+modern=$MODERN
+proton=$PROTON_TOOL
+EOF
 
 # --- Steam shortcut -----------------------------------------------------------
 

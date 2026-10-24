@@ -14,7 +14,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$HOME/gta2-deck-matrix"
 INSTALLER=""
 TOOLS=""
-VARIANTS="frontend vanilla radar"
+VARIANTS="frontend vanilla radar modern"
 RUN_SECONDS=20
 KEEP=0
 
@@ -24,7 +24,7 @@ Usage: tests/matrix.sh --installer FILE [options]
 
   --installer FILE   local GTA2INSTALLER.exe (avoids downloading it per case)
   --tools "A B"      internal tool names to test (default: installed supported ones)
-  --variants "..."   frontend, vanilla and/or radar (default: all three)
+  --variants "..."   frontend, vanilla, radar and/or modern (default: all)
   --work DIR         scratch directory (default: ~/gta2-deck-matrix)
   --seconds N        how long the game must survive (default: 20)
   --keep             keep each case's install root after the run
@@ -92,6 +92,7 @@ for tool in $TOOLS; do
 		args=(--dir "$root" --no-steam -y --lang fr --proton "$tool" --installer "$INSTALLER")
 		[ "$variant" = vanilla ] && args+=(--vanilla)
 		[ "$variant" = radar ] && args+=(--radar)
+		[ "$variant" = modern ] && args+=(--modern-controls)
 		# A hung case must not stall the whole matrix.
 		if timeout 1500 bash "$REPO_DIR/install.sh" "${args[@]}" >"$log.install.log" 2>&1; then
 			install=ok
@@ -99,6 +100,7 @@ for tool in $TOOLS; do
 			expected=(game/gta2.exe game/dinput.dll game/data/f.gxt game/data/g.gxt game/data/i.gxt game/scripts/GInputII.asi)
 			[ "$variant" != vanilla ] && expected+=(game/scripts/FrontendFixII.asi game/scripts/GTA2.WidescreenFix.asi game/ufiles/settings.xml)
 			[ "$variant" = radar ] && expected+=(game/scripts/GTA2Radar.asi game/data/radar/bil/bil_01.dds)
+			[ "$variant" = modern ] && expected+=(game/scripts/GTA2ModernControls.asi)
 			for f in "${expected[@]}"; do [ -f "$root/$f" ] || missing="$missing $f"; done
 			grep -q '"UseXVidMode"="N"' "$root/prefix/pfx/user.reg" || missing="$missing UseXVidMode"
 			if [ -z "$missing" ]; then files=ok; else files="missing:$missing"; fi
@@ -116,6 +118,7 @@ for tool in $TOOLS; do
 					want=(dinput.dll GInputII.asi)
 					[ "$variant" != vanilla ] && want+=(FrontendFixII.asi GTA2.WidescreenFix.asi)
 					[ "$variant" = radar ] && want+=(GTA2Radar.asi)
+					[ "$variant" = modern ] && want+=(GTA2ModernControls.asi)
 					absent=""
 					for m in "${want[@]}"; do grep -qi "/$m\$" "/proc/$pid/maps" || absent="$absent $m"; done
 					if [ -z "$absent" ]; then plugins=ok; else plugins="missing:$absent"; fi

@@ -6,7 +6,7 @@
 set -euo pipefail
 
 REPO="MagiCrazy/gta2-deck"
-VERSION="v1.1"
+VERSION="v1.2"
 
 usage() {
 	cat <<EOF
@@ -35,9 +35,13 @@ if [ -z "$SCRIPT_DIR" ] || [ ! -f "$SCRIPT_DIR/lib/steam.py" ]; then
 		|| die "cannot download https://github.com/${REPO}"
 	# stdin is the piped script: give the real terminal back for the confirmation.
 	if [ -r /dev/tty ] && (: </dev/tty) 2>/dev/null; then
-		exec bash "$tmp/uninstall.sh" "$@" </dev/tty
+		GTA2_DECK_BOOTSTRAP="$tmp" exec bash "$tmp/uninstall.sh" "$@" </dev/tty
 	fi
-	exec bash "$tmp/uninstall.sh" "$@" </dev/null
+	GTA2_DECK_BOOTSTRAP="$tmp" exec bash "$tmp/uninstall.sh" "$@" </dev/null
+fi
+# Started from the curl bootstrap: drop the temporary checkout when done.
+if [ -n "${GTA2_DECK_BOOTSTRAP:-}" ] && [ "$SCRIPT_DIR" = "$GTA2_DECK_BOOTSTRAP" ]; then
+	trap 'rm -rf -- "$GTA2_DECK_BOOTSTRAP"' EXIT
 fi
 
 ROOT="$HOME/Games/gta2"
